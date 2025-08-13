@@ -6,7 +6,8 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-gold_token = "5wSMYCY92a8SJLkTAUEKdGLYd58F3sESVhVA9RYJ2Jp2"
+gold_token = "26WSvyU7Qo83npQYNHUSVmckG8629C6ycVNyM8YJjPpe"
+transfer_hook_gatekeeper = "34eVYrFno86b57gD6xjKm9ijN1gUmeBXpGmhTQn28Zi2"
 
 [registry]
 url = "https://api.apr.dev"

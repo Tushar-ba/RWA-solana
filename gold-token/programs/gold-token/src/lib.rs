@@ -1,12 +1,15 @@
+// lib.rs -> Complete Gold Token Program (Corrected)
+
 use anchor_lang::prelude::*;
 use anchor_spl::{
+    associated_token::AssociatedToken,
     token_interface::{burn, mint_to, Burn, Mint, MintTo, TokenAccount, TokenInterface},
 };
 // Import the gatekeeper program to use its account types and CPI contexts
 use transfer_hook_gatekeeper::program::TransferHookGatekeeper;
 
 // This is the Program ID of the main gold token program
-declare_id!("8UMFebBx3dU7WX17C9abgnk4YkxyqFEaDN7MUKqf4F4r");
+declare_id!("26WSvyU7Qo83npQYNHUSVmckG8629C6ycVNyM8YJjPpe");
 
 #[program]
 pub mod gold_token {
@@ -129,8 +132,8 @@ pub mod gold_token {
     // SUPPLY CONTROLLER FUNCTIONS
     // ============================================
 
-    /// @dev Mints new tokens.
-    pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
+    /// @dev Mints new tokens and creates associated token account if needed.
+    pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64, recipient: Pubkey) -> Result<()> {
         require!(amount > 0, GoldTokenError::InvalidAmount);
         require!(!ctx.accounts.config.is_paused, GoldTokenError::ContractPaused);
         
@@ -142,7 +145,7 @@ pub mod gold_token {
                 ctx.accounts.token_program.to_account_info(),
                 MintTo {
                     mint: ctx.accounts.mint.to_account_info(),
-                    to: ctx.accounts.to.to_account_info(),
+                    to: ctx.accounts.recipient_token_account.to_account_info(),
                     authority: ctx.accounts.mint_authority_pda.to_account_info(),
                 },
                 signer,
@@ -152,9 +155,10 @@ pub mod gold_token {
 
         emit!(TokensMinted {
             mint: ctx.accounts.mint.key(),
-            to: ctx.accounts.to.key(),
+            to: ctx.accounts.recipient_token_account.key(),
             amount,
             authority: *ctx.accounts.supply_controller.key,
+            recipient,
         });
 
         Ok(())
@@ -389,7 +393,7 @@ pub struct Initialize<'info> {
     /// CHECK: Authority account, constrained at mint creation.
     pub supply_controller: AccountInfo<'info>,
     /// CHECK: Authority account, constrained at mint creation.
-    pub asset_protection: AccountInfo<'info>,
+    pub asset_protection: Signer<'info>,
     /// CHECK: Authority account, constrained at mint creation.
     pub fee_controller: AccountInfo<'info>,
     pub gatekeeper_program: Program<'info, TransferHookGatekeeper>,
@@ -449,6 +453,7 @@ pub struct TogglePause<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(amount: u64, recipient: Pubkey)]
 pub struct MintTokens<'info> {
     #[account(has_one = supply_controller)]
     pub config: Account<'info, Config>,
@@ -459,18 +464,23 @@ pub struct MintTokens<'info> {
     #[account(seeds = [b"mint_authority"], bump)]
     /// CHECK: PDA mint authority.
     pub mint_authority_pda: AccountInfo<'info>,
+    
+    /// The recipient who will own the tokens
+    /// CHECK: Any valid Solana address can receive tokens
+    pub recipient: AccountInfo<'info>,
+    
+    /// Associated Token Account for the recipient
     #[account(
-        init,
+        init_if_needed,
         payer = supply_controller,
-        token::mint = mint,
-        token::authority = to_authority,
+        associated_token::mint = mint,
+        associated_token::authority = recipient,
     )]
-    pub to: InterfaceAccount<'info, TokenAccount>,
-    /// CHECK: The authority of the `to` account.
-    pub to_authority: AccountInfo<'info>,
+    pub recipient_token_account: InterfaceAccount<'info, TokenAccount>,
+    
     pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
@@ -664,6 +674,7 @@ pub struct TokensMinted {
     pub to: Pubkey,
     pub amount: u64,
     pub authority: Pubkey,
+    pub recipient: Pubkey,
 }
 
 #[event]

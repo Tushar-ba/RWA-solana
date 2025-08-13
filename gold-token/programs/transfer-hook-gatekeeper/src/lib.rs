@@ -8,7 +8,7 @@ use spl_tlv_account_resolution::{
 };
 use spl_transfer_hook_interface::instruction::{ExecuteInstruction, TransferHookInstruction};
 
-declare_id!("8UMFebBx3dU7WX17C9abgnk4YkxyqFEaDN7MUKqf4F4r");
+declare_id!("34eVYrFno86b57gD6xjKm9ijN1gUmeBXpGmhTQn28Zi2");
 
 #[program]
 pub mod transfer_hook_gatekeeper {

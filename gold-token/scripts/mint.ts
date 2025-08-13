@@ -1,93 +1,9 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { GoldToken } from "../target/types/gold_token";
-import { TransferHookGatekeeper } from "../target/types/transfer_hook_gatekeeper";
 import { PublicKey, Keypair } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
 import { BN } from "@coral-xyz/anchor";
-
-// async function initialize() {
-//   // Configure the client to use the local cluster (same as test)
-//   anchor.setProvider(anchor.AnchorProvider.env());
-
-//   const goldTokenProgram = anchor.workspace.GoldToken as Program<GoldToken>;
-//   const gatekeeperProgram = anchor.workspace.TransferHookGatekeeper as Program<TransferHookGatekeeper>;
-
-//   // Generate keypairs for roles
-//   const admin = anchor.AnchorProvider.env().wallet.publicKey;
-//   const supplyController = Keypair.generate();
-//   const assetProtection = Keypair.generate(); 
-//   const feeController = Keypair.generate();
-
-//   console.log("Admin:", admin.toString());
-//   console.log("Supply Controller:", supplyController.publicKey.toString());
-//   console.log("Asset Protection:", assetProtection.publicKey.toString());
-//   console.log("Fee Controller:", feeController.publicKey.toString());
-
-//   // Derive PDAs
-//   const [config] = PublicKey.findProgramAddressSync(
-//     [Buffer.from("config")],
-//     goldTokenProgram.programId
-//   );
-
-//   const [gatekeeperConfig] = PublicKey.findProgramAddressSync(
-//     [Buffer.from("config")],
-//     gatekeeperProgram.programId
-//   );
-
-//   const [mintAuthority] = PublicKey.findProgramAddressSync(
-//     [Buffer.from("mint_authority")],
-//     goldTokenProgram.programId
-//   );
-
-//   // Generate mint keypair
-//   const mint = Keypair.generate();
-
-//   const [extraAccountMetaList] = PublicKey.findProgramAddressSync(
-//     [Buffer.from("extra-account-metas"), mint.publicKey.toBuffer()],
-//     gatekeeperProgram.programId
-//   );
-
-//   try {
-//     const tx = await goldTokenProgram.methods
-//       .initialize("Gold Token", "GOLD", "https://example.com/metadata.json")
-//       .accounts({
-//         admin: admin,
-//         supplyController: supplyController.publicKey,
-//         assetProtection: assetProtection.publicKey,
-//         feeController: feeController.publicKey,
-//         gatekeeperProgram: gatekeeperProgram.programId,
-//         config: config,
-//         gatekeeperConfig: gatekeeperConfig,
-//         extraAccountMetaList: extraAccountMetaList,
-//         mint: mint.publicKey,
-//         mintAuthorityPda: mintAuthority,
-//         tokenProgram: TOKEN_2022_PROGRAM_ID,
-//         systemProgram: anchor.web3.SystemProgram.programId,
-//         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-//       })
-//       .signers([
-//         mint,
-//         assetProtection
-//       ])
-//       .rpc();
-
-//     console.log("Initialize transaction signature:", tx);
-//     console.log("Mint address:", mint.publicKey.toString());
-    
-//     // Save important addresses
-//     console.log("\n=== SAVE THESE ADDRESSES ===");
-//     console.log("Config PDA:", config.toString());
-//     console.log("Mint:", mint.publicKey.toString());
-//     console.log("Mint Authority PDA:", mintAuthority.toString());
-//     console.log("Supply Controller Keypair:", JSON.stringify(Array.from(supplyController.secretKey)));
-//     console.log("Asset Protection Keypair:", JSON.stringify(Array.from(assetProtection.secretKey)));
-//     console.log("Fee Controller Keypair:", JSON.stringify(Array.from(feeController.secretKey)));
-    
-//   } catch (error) {
-//     console.error("Error:", error);
-//   }
-// }
 
 async function mintTokens() {
   // Configure the client to use the local cluster
@@ -96,13 +12,13 @@ async function mintTokens() {
   const goldTokenProgram = anchor.workspace.GoldToken as Program<GoldToken>;
 
   // ============================================
-  // CONFIGURATION - Replace with your addresses from initialization
+  // CONFIGURATION - Replace with your addresses
   // ============================================
   const CONFIG_PDA = new PublicKey("3oN9az3bVpmQWPUgkzRGowYzeGnE9dZuxthmf3ShMt2u");
   const MINT_ADDRESS = new PublicKey("FAESU8Ks782mg4bd7eoMmXaY3ZVqaTDGpydoL1VDw24");
   const MINT_AUTHORITY_PDA = new PublicKey("FeYAcs3joh6YKp7tKc6BjqbZf3KNhfbUYGCWyMAhSHqA");
   
-  // Supply Controller - Replace with your saved keypair from initialization
+  // Supply Controller - Replace with your saved keypair
   const SUPPLY_CONTROLLER_SECRET = [115,166,50,109,115,25,36,12,55,90,139,191,63,185,252,61,108,183,151,85,246,178,16,115,165,113,240,131,50,209,94,49,227,136,132,63,161,234,91,42,148,132,76,42,33,209,25,118,116,92,246,246,90,85,86,89,12,15,141,94,202,173,222,194];
   const supplyController = Keypair.fromSecretKey(new Uint8Array(SUPPLY_CONTROLLER_SECRET));
 
@@ -185,11 +101,38 @@ async function mintTokens() {
 }
 
 // ============================================
-// EXECUTION
+// HELPER FUNCTIONS
 // ============================================
 
-// 🔧 COMMENT OUT THE INITIALIZE CALL AFTER FIRST RUN:
-// initialize();
+// Function to mint to multiple recipients
+async function mintToMultipleUsers() {
+  console.log("=== BATCH MINTING ===");
+  
+  const recipients = [
+    { name: "Alice", amount: 1000 },
+    { name: "Bob", amount: 500 },
+    { name: "Charlie", amount: 2000 }
+  ];
 
-// 🪙 UNCOMMENT THIS TO MINT TOKENS:
-mintTokens();
+  for (const { name, amount } of recipients) {
+    console.log(`\nMinting ${amount} tokens to ${name}...`);
+    // Call mintTokens() with different parameters
+    // Implementation similar to above
+  }
+}
+
+// Function to check token balance
+async function checkBalance(tokenAccount: PublicKey) {
+  try {
+    const provider = anchor.AnchorProvider.env();
+    const accountInfo = await provider.connection.getTokenAccountBalance(tokenAccount);
+    console.log("Token Balance:", accountInfo.value.uiAmount, "GOLD");
+    return accountInfo.value.uiAmount;
+  } catch (error) {
+    console.log("Token account doesn't exist or error:", error.message);
+    return 0;
+  }
+}
+
+// Run the mint function
+mintTokens().catch(console.error);
