@@ -8,7 +8,7 @@ use spl_tlv_account_resolution::{
 };
 use spl_transfer_hook_interface::instruction::{ExecuteInstruction, TransferHookInstruction};
 
-declare_id!("34eVYrFno86b57gD6xjKm9ijN1gUmeBXpGmhTQn28Zi2");
+declare_id!("CsMsG5FueDqKdmZ1THbBRhvN2NXkDVsaHCABDsfmL4Ld");
 
 #[program]
 pub mod transfer_hook_gatekeeper {
@@ -155,27 +155,38 @@ pub struct Initialize<'info> {
         init,
         payer = payer,
         space = 8 + 32, // discriminator + pubkey
-        seeds = [b"config"],
+        seeds = [b"config", mint.key().as_ref()],
         bump
     )]
     pub config: Account<'info, Config>,
+    pub mint: InterfaceAccount<'info, Mint>,
     pub system_program: Program<'info, System>,
 }
 
 /// Set a new authority
 #[derive(Accounts)]
 pub struct SetAuthority<'info> {
-    #[account(mut, has_one = authority)]
+    #[account(
+        mut, 
+        has_one = authority,
+        seeds = [b"config", mint.key().as_ref()],
+        bump
+    )]
     pub config: Account<'info, Config>,
     pub authority: Signer<'info>,
     /// CHECK: New authority can be any account
     pub new_authority: AccountInfo<'info>,
+    pub mint: InterfaceAccount<'info, Mint>,
 }
 
 /// Add an address to the blacklist
 #[derive(Accounts)]
 pub struct AddToBlacklist<'info> {
-    #[account(has_one = authority)]
+    #[account(
+        has_one = authority,
+        seeds = [b"config", mint.key().as_ref()],
+        bump
+    )]
     pub config: Account<'info, Config>,
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -189,13 +200,18 @@ pub struct AddToBlacklist<'info> {
         bump
     )]
     pub blacklist_entry: Account<'info, BlacklistEntry>,
+    pub mint: InterfaceAccount<'info, Mint>,
     pub system_program: Program<'info, System>,
 }
 
 /// Remove an address from the blacklist
 #[derive(Accounts)]
 pub struct RemoveFromBlacklist<'info> {
-    #[account(has_one = authority)]
+    #[account(
+        has_one = authority,
+        seeds = [b"config", mint.key().as_ref()],
+        bump
+    )]
     pub config: Account<'info, Config>,
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -208,6 +224,7 @@ pub struct RemoveFromBlacklist<'info> {
         close = authority
     )]
     pub blacklist_entry: Account<'info, BlacklistEntry>,
+    pub mint: InterfaceAccount<'info, Mint>,
 }
 
 /// Context for the transfer hook execution

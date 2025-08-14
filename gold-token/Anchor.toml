@@ -5,15 +5,19 @@ package_manager = "yarn"
 resolution = true
 skip-lint = false
 
+[programs.devnet]
+gold_token = "EN54bHs4cXhfcqaAbvcSzcF4vBwSeyCSMaDm9W6MXFhC"
+transfer_hook_gatekeeper = "CsMsG5FueDqKdmZ1THbBRhvN2NXkDVsaHCABDsfmL4Ld"
+
 [programs.localnet]
-gold_token = "26WSvyU7Qo83npQYNHUSVmckG8629C6ycVNyM8YJjPpe"
-transfer_hook_gatekeeper = "34eVYrFno86b57gD6xjKm9ijN1gUmeBXpGmhTQn28Zi2"
+gold_token = "EN54bHs4cXhfcqaAbvcSzcF4vBwSeyCSMaDm9W6MXFhC"
+transfer_hook_gatekeeper = "5HbTps64Rx3964dLyTHDdEBnMe69KNRpYvJFrB6ryfgZ"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

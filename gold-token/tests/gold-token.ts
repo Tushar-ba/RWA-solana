@@ -1,195 +1,213 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { GoldToken } from "../target/types/gold_token";
-import { TransferHookGatekeeper } from "../target/types/transfer_hook_gatekeeper";
-import { PublicKey, Keypair } from "@solana/web3.js";
-import { TOKEN_2022_PROGRAM_ID, getAssociatedTokenAddress } from "@solana/spl-token";
+import { PublicKey, Keypair, SystemProgram } from "@solana/web3.js";
+import { 
+  TOKEN_2022_PROGRAM_ID, 
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import { BN } from "@coral-xyz/anchor";
 
-// async function initialize() {
-//   // Configure the client to use the local cluster (same as test)
-//   anchor.setProvider(anchor.AnchorProvider.env());
+// Admin keypair for initialization
+const ADMIN_SECRET = [36,158,144,127,107,25,26,208,83,230,35,72,99,45,54,226,143,5,164,6,48,7,237,15,217,109,130,35,13,23,74,226,85,236,23,97,197,191,171,102,224,176,126,201,90,100,87,222,253,112,236,100,21,97,195,15,124,60,14,228,38,121,110,170];
+const admin = Keypair.fromSecretKey(new Uint8Array(ADMIN_SECRET));
 
-//   const goldTokenProgram = anchor.workspace.GoldToken as Program<GoldToken>;
-//   const gatekeeperProgram = anchor.workspace.TransferHookGatekeeper as Program<TransferHookGatekeeper>;
+async function setupProvider() {
+  // Configure for devnet
+  const connection = new anchor.web3.Connection("https://api.devnet.solana.com", "confirmed");
+  const wallet = new anchor.Wallet(admin);
+  const provider = new anchor.AnchorProvider(connection, wallet, {
+    commitment: "confirmed",
+  });
+  anchor.setProvider(provider);
+  return { connection, provider };
+}
 
-//   // Generate keypairs for roles
-//   const admin = anchor.AnchorProvider.env().wallet.publicKey;
-//   const supplyController = Keypair.generate();
-//   const assetProtection = Keypair.generate(); 
-//   const feeController = Keypair.generate();
-
-//   console.log("Admin:", admin.toString());
-//   console.log("Supply Controller:", supplyController.publicKey.toString());
-//   console.log("Asset Protection:", assetProtection.publicKey.toString());
-//   console.log("Fee Controller:", feeController.publicKey.toString());
-
-//   // Derive PDAs
-//   const [config] = PublicKey.findProgramAddressSync(
-//     [Buffer.from("config")],
-//     goldTokenProgram.programId
-//   );
-
-//   const [gatekeeperConfig] = PublicKey.findProgramAddressSync(
-//     [Buffer.from("config")],
-//     gatekeeperProgram.programId
-//   );
-
-//   const [mintAuthority] = PublicKey.findProgramAddressSync(
-//     [Buffer.from("mint_authority")],
-//     goldTokenProgram.programId
-//   );
-
-//   // Generate mint keypair
-//   const mint = Keypair.generate();
-
-//   const [extraAccountMetaList] = PublicKey.findProgramAddressSync(
-//     [Buffer.from("extra-account-metas"), mint.publicKey.toBuffer()],
-//     gatekeeperProgram.programId
-//   );
-
-//   try {
-//     const tx = await goldTokenProgram.methods
-//       .initialize("Gold Token", "GOLD", "https://example.com/metadata.json")
-//       .accounts({
-//         admin: admin,
-//         supplyController: supplyController.publicKey,
-//         assetProtection: assetProtection.publicKey,
-//         feeController: feeController.publicKey,
-//         gatekeeperProgram: gatekeeperProgram.programId,
-//         config: config,
-//         gatekeeperConfig: gatekeeperConfig,
-//         extraAccountMetaList: extraAccountMetaList,
-//         mint: mint.publicKey,
-//         mintAuthorityPda: mintAuthority,
-//         tokenProgram: TOKEN_2022_PROGRAM_ID,
-//         systemProgram: anchor.web3.SystemProgram.programId,
-//         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-//       })
-//       .signers([
-//         mint,
-//         assetProtection
-//       ])
-//       .rpc();
-
-//     console.log("Initialize transaction signature:", tx);
-//     console.log("Mint address:", mint.publicKey.toString());
-    
-//     // Save important addresses
-//     console.log("\n=== SAVE THESE ADDRESSES ===");
-//     console.log("Config PDA:", config.toString());
-//     console.log("Mint:", mint.publicKey.toString());
-//     console.log("Mint Authority PDA:", mintAuthority.toString());
-//     console.log("Supply Controller Keypair:", JSON.stringify(Array.from(supplyController.secretKey)));
-//     console.log("Asset Protection Keypair:", JSON.stringify(Array.from(assetProtection.secretKey)));
-//     console.log("Fee Controller Keypair:", JSON.stringify(Array.from(feeController.secretKey)));
-    
-//   } catch (error) {
-//     console.error("Error:", error);
-//   }
-// }
-
-async function mintTokens() {
-  // Configure the client to use the local cluster
-  anchor.setProvider(anchor.AnchorProvider.env());
-
-  const goldTokenProgram = anchor.workspace.GoldToken as Program<GoldToken>;
-
-  // ============================================
-  // CONFIGURATION - Replace with your addresses from initialization
-  // ============================================
-  const CONFIG_PDA = new PublicKey("3oN9az3bVpmQWPUgkzRGowYzeGnE9dZuxthmf3ShMt2u");
-  const MINT_ADDRESS = new PublicKey("FAESU8Ks782mg4bd7eoMmXaY3ZVqaTDGpydoL1VDw24");
-  const MINT_AUTHORITY_PDA = new PublicKey("FeYAcs3joh6YKp7tKc6BjqbZf3KNhfbUYGCWyMAhSHqA");
+async function initializeGoldToken() {
+  console.log("🚀 Starting Gold Token Initialization...\n");
   
-  // Supply Controller - Replace with your saved keypair from initialization
-  const SUPPLY_CONTROLLER_SECRET = [115,166,50,109,115,25,36,12,55,90,139,191,63,185,252,61,108,183,151,85,246,178,16,115,165,113,240,131,50,209,94,49,227,136,132,63,161,234,91,42,148,132,76,42,33,209,25,118,116,92,246,246,90,85,86,89,12,15,141,94,202,173,222,194];
-  const supplyController = Keypair.fromSecretKey(new Uint8Array(SUPPLY_CONTROLLER_SECRET));
-
-  // ============================================
-  // MINT PARAMETERS
-  // ============================================
-  const AMOUNT_TO_MINT = 1000; // 1000 tokens (with 9 decimals = 1000.000000000)
+  const { connection, provider } = await setupProvider();
+  const program = anchor.workspace.GoldToken as Program<GoldToken>;
   
-  // Create a recipient (or use existing wallet)
-  const recipient = Keypair.generate(); // Generate new user
-  // const recipient = new PublicKey("EXISTING_USER_ADDRESS"); // Or use existing address
-
-  console.log("=== MINTING GOLD TOKENS ===");
-  console.log("Config PDA:", CONFIG_PDA.toString());
-  console.log("Mint Address:", MINT_ADDRESS.toString());
-  console.log("Supply Controller:", supplyController.publicKey.toString());
-  console.log("Recipient:", recipient.publicKey.toString());
-  console.log("Amount to mint:", AMOUNT_TO_MINT);
-
-  // ============================================
-  // DERIVE ASSOCIATED TOKEN ACCOUNT
-  // ============================================
-  const recipientTokenAccount = await getAssociatedTokenAddress(
-    MINT_ADDRESS,
-    recipient.publicKey,
-    false, // allowOwnerOffCurve
-    TOKEN_2022_PROGRAM_ID
+  // Generate new mint keypair
+  const mint = Keypair.generate();
+  console.log("🪙 Mint Address:", mint.publicKey.toString());
+  
+  // Define role authorities
+  const supplyController = Keypair.generate();
+  const assetProtection = Keypair.generate();
+  const feeController = Keypair.generate();
+  
+  console.log("👑 Admin:", admin.publicKey.toString());
+  console.log("📈 Supply Controller:", supplyController.publicKey.toString());
+  console.log("🛡️ Asset Protection:", assetProtection.publicKey.toString());
+  console.log("💰 Fee Controller:", feeController.publicKey.toString());
+  
+  // Derive PDAs
+  const [configPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("config")],
+    program.programId
   );
-
-  console.log("Recipient Token Account:", recipientTokenAccount.toString());
-
-  // ============================================
-  // MINT TOKENS
-  // ============================================
+  
+  const [mintAuthorityPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("mint_authority")],
+    program.programId
+  );
+  
+  // Gatekeeper program ID (from your transfer hook program)
+  const gatekeeperProgramId = new PublicKey("CsMsG5FueDqKdmZ1THbBRhvN2NXkDVsaHCABDsfmL4Ld");
+  
+  const [gatekeeperConfig] = PublicKey.findProgramAddressSync(
+    [Buffer.from("config"), mint.publicKey.toBuffer()],
+    gatekeeperProgramId
+  );
+  
+  const [extraAccountMetaList] = PublicKey.findProgramAddressSync(
+    [Buffer.from("extra-account-metas"), mint.publicKey.toBuffer()],
+    gatekeeperProgramId
+  );
+  
+  console.log("📍 Config PDA:", configPda.toString());
+  console.log("🔑 Mint Authority PDA:", mintAuthorityPda.toString());
+  console.log("🔒 Gatekeeper Config:", gatekeeperConfig.toString());
+  console.log("📋 Extra Account Meta List:", extraAccountMetaList.toString());
+  
+  // Check if accounts already exist
+  console.log("\n🔍 Checking for existing accounts...");
+  const configExists = await checkAccountExists(connection, configPda);
+  const gatekeeperConfigExists = await checkAccountExists(connection, gatekeeperConfig);
+  const extraAccountMetaListExists = await checkAccountExists(connection, extraAccountMetaList);
+  
+  if (configExists) {
+    console.log("❌ Token already initialized! Config PDA already exists.");
+    console.log("💡 If you want to initialize a fresh token, please:");
+    console.log("   1. Use a different program ID, or");
+    console.log("   2. Use a different admin account, or");
+    console.log("   3. Reset your local validator state");
+    return;
+  }
+  
+  if (gatekeeperConfigExists && extraAccountMetaListExists) {
+    console.log("⚠️ Gatekeeper already configured - this will fail. Please use a fresh mint address or reset your local state.");
+    console.log("💡 Try running: solana-test-validator --reset");
+    return;
+  }
+  
   try {
-    const tx = await goldTokenProgram.methods
-      .mintTokens(
-        new BN(AMOUNT_TO_MINT * 10**9), // Convert to smallest unit (9 decimals)
-        recipient.publicKey
+    console.log("\n📝 Initializing Gold Token...");
+    
+    // Token parameters
+    const transferFeeBasisPoints = 20; // 0.2% fee
+    const maximumFee = new BN(1_000_000_000); // 1 token maximum fee (9 decimals)
+    
+    const txSignature = await program.methods
+      .initialize(
+        "Gold Token",           // name
+        "GOLD",                // symbol  
+        "https://gold-token.example.com/metadata.json", // uri
+        transferFeeBasisPoints, // transfer fee basis points
+        maximumFee             // maximum fee
       )
       .accounts({
-        config: CONFIG_PDA,
+        admin: admin.publicKey,
         supplyController: supplyController.publicKey,
-        mint: MINT_ADDRESS,
-        mintAuthorityPda: MINT_AUTHORITY_PDA,
-        recipient: recipient.publicKey,
-        recipientTokenAccount: recipientTokenAccount,
+        assetProtection: assetProtection.publicKey,
+        feeController: feeController.publicKey,
+        gatekeeperProgram: gatekeeperProgramId,
+        config: configPda,
+        gatekeeperConfig: gatekeeperConfig,
+        extraAccountMetaList: extraAccountMetaList,
+        mint: mint.publicKey,
+        mintAuthorityPda: mintAuthorityPda,
         tokenProgram: TOKEN_2022_PROGRAM_ID,
-        associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
+        systemProgram: SystemProgram.programId,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       })
-      .signers([supplyController]) // Supply controller must sign
+      .signers([admin, mint, assetProtection])
       .rpc();
-
-    console.log("\n🎉 MINT SUCCESS!");
-    console.log("Transaction signature:", tx);
-    console.log("\n=== RESULTS ===");
-    console.log("✅ Minted", AMOUNT_TO_MINT, "GOLD tokens");
-    console.log("✅ To recipient:", recipient.publicKey.toString());
-    console.log("✅ Token account:", recipientTokenAccount.toString());
-
-    // ============================================
-    // SAVE RECIPIENT INFO
-    // ============================================
-    console.log("\n=== SAVE RECIPIENT INFO ===");
-    console.log("Recipient Public Key:", recipient.publicKey.toString());
-    console.log("Recipient Secret Key:", JSON.stringify(Array.from(recipient.secretKey)));
+    
+    console.log("✅ Initialization successful!");
+    console.log("📝 Transaction signature:", txSignature);
+    
+    // Verify the mint was created with extensions
+    console.log("\n=== VERIFICATION ===");
+    const mintAccount = await connection.getAccountInfo(mint.publicKey);
+    if (mintAccount) {
+      console.log("✅ Mint account created");
+      console.log("📊 Mint account owner:", mintAccount.owner.toString());
+      console.log("📏 Mint account size:", mintAccount.data.length, "bytes");
+      
+      // Check if it's Token-2022
+      if (mintAccount.owner.equals(TOKEN_2022_PROGRAM_ID)) {
+        console.log("✅ Created with Token-2022 program (extensions supported)");
+      } else {
+        console.log("⚠️ Created with standard Token program (no extensions)");
+      }
+    }
+    
+    // Display all important addresses
+    console.log("\n=== IMPORTANT ADDRESSES ===");
+    console.log("🪙 Mint:", mint.publicKey.toString());
+    console.log("📍 Config PDA:", configPda.toString());
+    console.log("🔑 Mint Authority PDA:", mintAuthorityPda.toString());
+    console.log("👑 Admin:", admin.publicKey.toString());
+    console.log("📈 Supply Controller:", supplyController.publicKey.toString());
+    console.log("🛡️ Asset Protection:", assetProtection.publicKey.toString());
+    console.log("💰 Fee Controller:", feeController.publicKey.toString());
+    
+    // Display explorer links
+    console.log("\n=== EXPLORER LINKS ===");
+    console.log("🌐 Transaction:", `https://explorer.solana.com/tx/${txSignature}?cluster=devnet`);
+    console.log("🪙 Mint:", `https://explorer.solana.com/address/${mint.publicKey}?cluster=devnet`);
+    console.log("📍 Config:", `https://explorer.solana.com/address/${configPda}?cluster=devnet`);
+    
+    console.log("\n🎉 Gold Token initialization completed successfully!");
+    console.log("💡 You can now use this mint address for minting tokens:");
+    console.log(`   Mint Address: ${mint.publicKey.toString()}`);
     
   } catch (error) {
-    console.error("❌ Mint failed:", error);
+    console.error("❌ Initialization failed:", error);
     
-    // Check if error is due to insufficient funds for account creation
-    if (error.message?.includes("insufficient lamports")) {
-      console.log("\n💡 TIP: Make sure the supply controller has enough SOL for:");
-      console.log("  - Transaction fees");
-      console.log("  - Associated token account creation (~0.002 SOL)");
-      console.log("  - Run: solana airdrop 1 " + supplyController.publicKey.toString());
+    if (error.message?.includes("already in use") || error.message?.includes("already exists")) {
+      console.log("\n💡 This error usually means:");
+      console.log("   🔄 Gatekeeper config already exists from a previous run");
+      console.log("   🛠️ Solution: Reset your local validator state:");
+      console.log("      solana-test-validator --reset");
+      console.log("   📝 Or use a different network/cluster");
+    } else if (error.message?.includes("insufficient funds")) {
+      console.log("💡 Make sure the admin account has enough SOL for transaction fees");
+    } else if (error.message?.includes("custom program error: 0x0")) {
+      console.log("\n💡 Account allocation error detected:");
+      console.log("   🔄 This usually means an account (likely gatekeeper config) already exists");
+      console.log("   🛠️ Solution options:");
+      console.log("      1. Reset local validator: solana-test-validator --reset");
+      console.log("      2. Switch to a fresh devnet/testnet");
+      console.log("      3. Use a different admin keypair");
     }
   }
 }
 
-// ============================================
-// EXECUTION
-// ============================================
+async function checkAccountExists(connection: anchor.web3.Connection, address: PublicKey): Promise<boolean> {
+  try {
+    const accountInfo = await connection.getAccountInfo(address);
+    return accountInfo !== null;
+  } catch (error) {
+    return false;
+  }
+}
 
-// 🔧 COMMENT OUT THE INITIALIZE CALL AFTER FIRST RUN:
-// initialize();
+// Main execution
+async function main() {
+  try {
+    console.log("🌟 Gold Token Initialization Script");
+    console.log("=====================================\n");
+    
+    await initializeGoldToken();
+    
+    console.log("\n✨ Initialization script completed!");
+  } catch (error) {
+    console.error("❌ Script failed:", error);
+  }
+}
 
-// 🪙 UNCOMMENT THIS TO MINT TOKENS:
-mintTokens();
+main().catch(console.error);

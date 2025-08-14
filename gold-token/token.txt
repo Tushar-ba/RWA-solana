@@ -1,29 +1,15 @@
-// lib.rs -> Complete Gold Token Program (Anchor 0.31.1)
+// lib.rs -> Complete Gold Token Program (Corrected)
 
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{
-        burn, mint_to, approve, revoke,
-        Burn, Mint, MintTo, TokenAccount, TokenInterface,
-        Approve, Revoke,
-    },
-    token_2022::spl_token_2022::{
-        instruction::{
-            initialize_permanent_delegate,
-        },
-        extension::transfer_hook::instruction::initialize,
-
-    },
+    token_interface::{burn, mint_to, Burn, Mint, MintTo, TokenAccount, TokenInterface},
 };
-use anchor_lang::solana_program::program::invoke_signed;
-
 // Import the gatekeeper program to use its account types and CPI contexts
 use transfer_hook_gatekeeper::program::TransferHookGatekeeper;
 
-
 // This is the Program ID of the main gold token program
-declare_id!("EN54bHs4cXhfcqaAbvcSzcF4vBwSeyCSMaDm9W6MXFhC");
+declare_id!("26WSvyU7Qo83npQYNHUSVmckG8629C6ycVNyM8YJjPpe");
 
 #[program]
 pub mod gold_token {
@@ -37,104 +23,7 @@ pub mod gold_token {
         _name: String,
         _symbol: String,
         _uri: String,
-        transfer_fee_basis_points: u16,
-        maximum_fee: u64,
     ) -> Result<()> {
-        use anchor_spl::token_2022::spl_token_2022::extension::ExtensionType;
-        use anchor_lang::solana_program::system_instruction;
-
-        // Calculate space needed for mint with extensions
-        let mint_size = ExtensionType::try_calculate_account_len::<anchor_spl::token_2022::spl_token_2022::state::Mint>(&[
-            ExtensionType::TransferFeeConfig,
-            ExtensionType::PermanentDelegate,
-            ExtensionType::TransferHook,
-        ])?;
-
-        // Create mint account
-        let create_mint_ix = system_instruction::create_account(
-            ctx.accounts.admin.key,
-            &ctx.accounts.mint.key(),
-            ctx.accounts.rent.minimum_balance(mint_size),
-            mint_size as u64,
-            &anchor_spl::token_2022::ID,
-        );
-
-        anchor_lang::solana_program::program::invoke(
-            &create_mint_ix,
-            &[
-                ctx.accounts.admin.to_account_info(),
-                ctx.accounts.mint.to_account_info(),
-                ctx.accounts.system_program.to_account_info(),
-            ],
-        )?;
-
-        // Initialize Transfer Fee Extension FIRST
-        invoke_signed(
-            &anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::instruction::initialize_transfer_fee_config(
-                &anchor_spl::token_2022::ID,
-                &ctx.accounts.mint.key(),
-                Some(&ctx.accounts.fee_controller.key()),
-                Some(&ctx.accounts.fee_controller.key()),
-                transfer_fee_basis_points,
-                maximum_fee,
-            )?,
-            &[
-                ctx.accounts.mint.to_account_info(),
-            ],
-            &[],
-        )?;
-
-        // Initialize Permanent Delegate Extension SECOND
-        invoke_signed(
-            &initialize_permanent_delegate(
-                &anchor_spl::token_2022::ID,
-                &ctx.accounts.mint.key(),
-                &ctx.accounts.asset_protection.key(),
-            )?,
-            &[
-                ctx.accounts.mint.to_account_info(),
-            ],
-            &[],
-        )?;
-
-        // Initialize Transfer Hook Extension THIRD
-        invoke_signed(
-            &anchor_spl::token_2022::spl_token_2022::extension::transfer_hook::instruction::initialize(
-                &anchor_spl::token_2022::ID,
-                &ctx.accounts.mint.key(),
-                Some(ctx.accounts.asset_protection.key()),
-                Some(ctx.accounts.gatekeeper_program.key()),
-            )?,
-            &[
-                ctx.accounts.mint.to_account_info(),
-            ],
-            &[],
-        )?;
-
-        // Get mint authority seeds for signing
-        let mint_authority_bump = ctx.bumps.mint_authority_pda;
-        let mint_authority_seeds: &[&[u8]] = &[
-            b"mint_authority".as_ref(),
-            &[mint_authority_bump],
-        ];
-        let mint_authority_signer = &[&mint_authority_seeds[..]];
-
-        // NOW initialize the basic mint (this must come AFTER all extensions)
-        invoke_signed(
-            &anchor_spl::token_2022::spl_token_2022::instruction::initialize_mint2(
-                &anchor_spl::token_2022::ID,
-                &ctx.accounts.mint.key(),
-                &ctx.accounts.mint_authority_pda.key(),
-                None, // No freeze authority
-                9,    // Decimals
-            )?,
-            &[
-                ctx.accounts.mint.to_account_info(),
-                ctx.accounts.rent.to_account_info(),
-            ],
-            mint_authority_signer,
-        )?;
-
         // Initialize our own config
         let config = &mut ctx.accounts.config;
         config.admin = *ctx.accounts.admin.key;
@@ -145,19 +34,19 @@ pub mod gold_token {
         config.gatekeeper_program = *ctx.accounts.gatekeeper_program.key;
         config.redemption_request_counter = 0;
         config.is_paused = false;
-    
-        // CPI to initialize the gatekeeper program
+
+        // CPI to initialize the gatekeeper program, setting our asset_protection
+        // role as its one true authority.
         let cpi_program = ctx.accounts.gatekeeper_program.to_account_info();
         let cpi_accounts = transfer_hook_gatekeeper::cpi::accounts::Initialize {
             payer: ctx.accounts.admin.to_account_info(),
             authority: ctx.accounts.asset_protection.to_account_info(),
             config: ctx.accounts.gatekeeper_config.to_account_info(),
-            mint: ctx.accounts.mint.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
         };
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         transfer_hook_gatekeeper::cpi::initialize(cpi_ctx)?;
-    
+
         // Initialize the ExtraAccountMetaList for the transfer hook
         let cpi_accounts = transfer_hook_gatekeeper::cpi::accounts::InitializeExtraAccountMetaList {
             payer: ctx.accounts.admin.to_account_info(),
@@ -167,13 +56,20 @@ pub mod gold_token {
         };
         let cpi_ctx = CpiContext::new(ctx.accounts.gatekeeper_program.to_account_info(), cpi_accounts);
         transfer_hook_gatekeeper::cpi::initialize_extra_account_meta_list(cpi_ctx)?;
-    
+
+        // TODO: Configure Token-2022 extensions manually here:
+        // - Transfer Fee Config (20 basis points, max 1 token)
+        // - Transfer Hook (point to gatekeeper program)
+        // - Permanent Delegate (set to asset_protection)
+        // - Metadata Pointer (point to mint itself)
+        // Use anchor_spl::token_2022 instruction builders or CPI calls
+
         emit!(TokenInitialized {
             mint: ctx.accounts.mint.key(),
             admin: *ctx.accounts.admin.key,
             gatekeeper_program: *ctx.accounts.gatekeeper_program.key,
         });
-    
+
         Ok(())
     }
 
@@ -229,95 +125,6 @@ pub mod gold_token {
             authority: *ctx.accounts.admin.key,
         });
         
-        Ok(())
-    }
-
-    // ============================================
-    // FEE CONTROLLER FUNCTIONS
-    // ============================================
-
-    /// @dev Updates the transfer fee configuration.
-    pub fn set_transfer_fee(
-        ctx: Context<SetTransferFee>, 
-        transfer_fee_basis_points: u16, 
-        maximum_fee: u64
-    ) -> Result<()> {
-        require!(!ctx.accounts.config.is_paused, GoldTokenError::ContractPaused);
-        
-        invoke_signed(
-            &anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::instruction::set_transfer_fee(
-                &anchor_spl::token_2022::ID,
-                &ctx.accounts.mint.key(),
-                &ctx.accounts.fee_controller.key(),
-                &[],
-                transfer_fee_basis_points,
-                maximum_fee,
-            )?,
-            &[
-                ctx.accounts.mint.to_account_info(),
-                ctx.accounts.fee_controller.to_account_info(),
-            ],
-            &[],
-        )?;
-
-        emit!(TransferFeeUpdated {
-            mint: ctx.accounts.mint.key(),
-            transfer_fee_basis_points,
-            maximum_fee,
-            authority: *ctx.accounts.fee_controller.key,
-        });
-
-        Ok(())
-    }
-
-    /// @dev Withdraws withheld fees from the mint account.
-    pub fn withdraw_withheld_tokens_from_mint(
-        ctx: Context<WithdrawWithheldTokensFromMint>
-    ) -> Result<()> {
-        require!(!ctx.accounts.config.is_paused, GoldTokenError::ContractPaused);
-        
-        invoke_signed(
-            &anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::instruction::withdraw_withheld_tokens_from_mint(
-                &anchor_spl::token_2022::ID,
-                &ctx.accounts.mint.key(),
-                &ctx.accounts.destination_token_account.key(),
-                &ctx.accounts.fee_controller.key(),
-                &[],
-            )?,
-            &[
-                ctx.accounts.mint.to_account_info(),
-                ctx.accounts.destination_token_account.to_account_info(),
-                ctx.accounts.fee_controller.to_account_info(),
-            ],
-            &[],
-        )?;
-
-        emit!(WithheldTokensWithdrawn {
-            mint: ctx.accounts.mint.key(),
-            destination: ctx.accounts.destination_token_account.key(),
-            authority: *ctx.accounts.fee_controller.key,
-        });
-
-        Ok(())
-    }
-
-    /// @dev Withdraws withheld fees from token accounts.
-    pub fn withdraw_withheld_tokens_from_accounts(
-        ctx: Context<WithdrawWithheldTokensFromAccounts>
-    ) -> Result<()> {
-        require!(!ctx.accounts.config.is_paused, GoldTokenError::ContractPaused);
-        
-        // For simplicity, we'll limit this to a small number of source accounts
-        // In practice, you might want to handle this differently based on your needs
-        msg!("Withdraw withheld tokens from accounts functionality requires custom implementation for multiple accounts");
-        
-        emit!(WithheldTokensWithdrawnFromAccounts {
-            mint: ctx.accounts.mint.key(),
-            destination: ctx.accounts.destination_token_account.key(),
-            source_accounts: vec![], // Empty for now - implement as needed
-            authority: *ctx.accounts.fee_controller.key,
-        });
-
         Ok(())
     }
 
@@ -386,10 +193,10 @@ pub mod gold_token {
         request.redemption_pda_bump = ctx.bumps.redemption_pda;
         
         // Delegate tokens to the redemption PDA
-        approve(
+        anchor_spl::token_interface::approve(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                Approve {
+                anchor_spl::token_interface::Approve {
                     to: ctx.accounts.user_token_account.to_account_info(),
                     delegate: ctx.accounts.redemption_pda.to_account_info(),
                     authority: ctx.accounts.user.to_account_info(),
@@ -458,9 +265,9 @@ pub mod gold_token {
         let request = &mut ctx.accounts.redemption_request;
         require!(request.status == RedemptionStatus::Pending, GoldTokenError::InvalidRequestStatus);
         
-        revoke(CpiContext::new(
+        anchor_spl::token_interface::revoke(CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
-            Revoke {
+            anchor_spl::token_interface::Revoke {
                 source: ctx.accounts.user_token_account.to_account_info(),
                 authority: ctx.accounts.user.to_account_info(),
             },
@@ -507,7 +314,6 @@ pub mod gold_token {
             authority: ctx.accounts.asset_protection.to_account_info(),
             target_address: ctx.accounts.target_address.to_account_info(),
             blacklist_entry: ctx.accounts.blacklist_entry.to_account_info(),
-            mint: ctx.accounts.mint.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
         };
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
@@ -529,7 +335,6 @@ pub mod gold_token {
             authority: ctx.accounts.asset_protection.to_account_info(),
             target_address: ctx.accounts.target_address.to_account_info(),
             blacklist_entry: ctx.accounts.blacklist_entry.to_account_info(),
-            mint: ctx.accounts.mint.to_account_info(),
         };
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         transfer_hook_gatekeeper::cpi::remove_from_blacklist(cpi_ctx)?;
@@ -576,15 +381,18 @@ pub mod gold_token {
     }
 }
 
+// ============================================
+// ACCOUNT VALIDATION STRUCTS
+// ============================================
 
 #[derive(Accounts)]
-#[instruction(name: String, symbol: String, uri: String, transfer_fee_basis_points: u16, maximum_fee: u64)]
+#[instruction(name: String, symbol: String, uri: String)]
 pub struct Initialize<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
     /// CHECK: Authority account, constrained at mint creation.
     pub supply_controller: AccountInfo<'info>,
-    /// Asset protection authority - must be signer for gatekeeper initialization
+    /// CHECK: Authority account, constrained at mint creation.
     pub asset_protection: Signer<'info>,
     /// CHECK: Authority account, constrained at mint creation.
     pub fee_controller: AccountInfo<'info>,
@@ -593,7 +401,7 @@ pub struct Initialize<'info> {
     #[account(
         init, 
         payer = admin, 
-        space = 8 + 32*6 + 8 + 1,
+        space = 8 + 32*6 + 8 + 1, // discriminator + 6 pubkeys + counter + bool
         seeds = [b"config"], 
         bump
     )]
@@ -612,9 +420,14 @@ pub struct Initialize<'info> {
     )]
     pub extra_account_meta_list: AccountInfo<'info>,
 
-    /// CHECK: Mint account will be manually created with extensions
-    #[account(mut)]
-    pub mint: Signer<'info>,
+    #[account(
+        init,
+        payer = admin,
+        mint::decimals = 9,
+        mint::authority = mint_authority_pda,
+        mint::token_program = token_program,
+    )]
+    pub mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(seeds = [b"mint_authority"], bump)]
     /// CHECK: This is a PDA.
@@ -640,58 +453,6 @@ pub struct TogglePause<'info> {
 }
 
 #[derive(Accounts)]
-pub struct SetTransferFee<'info> {
-    #[account(has_one = fee_controller)]
-    pub config: Account<'info, Config>,
-    pub fee_controller: Signer<'info>,
-    #[account(mut, address = config.mint)]
-    pub mint: InterfaceAccount<'info, Mint>,
-    pub token_program: Interface<'info, TokenInterface>,
-}
-
-#[derive(Accounts)]
-pub struct WithdrawWithheldTokensFromMint<'info> {
-    #[account(has_one = fee_controller)]
-    pub config: Account<'info, Config>,
-    #[account(mut)]
-    pub fee_controller: Signer<'info>,
-    #[account(mut, address = config.mint)]
-    pub mint: InterfaceAccount<'info, Mint>,
-    #[account(
-        init_if_needed,
-        payer = fee_controller,
-        associated_token::mint = mint,
-        associated_token::authority = fee_controller,
-        associated_token::token_program = token_program,
-    )]
-    pub destination_token_account: InterfaceAccount<'info, TokenAccount>,
-    pub token_program: Interface<'info, TokenInterface>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct WithdrawWithheldTokensFromAccounts<'info> {
-    #[account(has_one = fee_controller)]
-    pub config: Account<'info, Config>,
-    #[account(mut)]
-    pub fee_controller: Signer<'info>,
-    #[account(mut, address = config.mint)]
-    pub mint: InterfaceAccount<'info, Mint>,
-    #[account(
-        init_if_needed,
-        payer = fee_controller,
-        associated_token::mint = mint,
-        associated_token::authority = fee_controller,
-        associated_token::token_program = token_program,
-    )]
-    pub destination_token_account: InterfaceAccount<'info, TokenAccount>,
-    pub token_program: Interface<'info, TokenInterface>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
 #[instruction(amount: u64, recipient: Pubkey)]
 pub struct MintTokens<'info> {
     #[account(has_one = supply_controller)]
@@ -714,7 +475,6 @@ pub struct MintTokens<'info> {
         payer = supply_controller,
         associated_token::mint = mint,
         associated_token::authority = recipient,
-        associated_token::token_program = token_program,
     )]
     pub recipient_token_account: InterfaceAccount<'info, TokenAccount>,
     
@@ -799,8 +559,6 @@ pub struct UpdateBlacklist<'info> {
     #[account(has_one = asset_protection)]
     pub config: Account<'info, Config>,
     pub asset_protection: Signer<'info>,
-    #[account(address = config.mint)]
-    pub mint: InterfaceAccount<'info, Mint>,
     /// CHECK: The address to add to the blacklist.
     pub target_address: AccountInfo<'info>,
     /// CHECK: The PDA marker account for the blacklist entry.
@@ -818,8 +576,6 @@ pub struct RemoveBlacklist<'info> {
     #[account(has_one = asset_protection)]
     pub config: Account<'info, Config>,
     pub asset_protection: Signer<'info>,
-    #[account(address = config.mint)]
-    pub mint: InterfaceAccount<'info, Mint>,
     /// CHECK: The address to remove from the blacklist.
     pub target_address: AccountInfo<'info>,
     /// CHECK: The PDA marker account for the blacklist entry.
@@ -887,6 +643,10 @@ pub enum RedemptionStatus {
     Fulfilled,
     Cancelled,
 }
+
+// ============================================
+// EVENTS
+// ============================================
 
 #[event]
 pub struct TokenInitialized {
@@ -965,29 +725,6 @@ pub struct AddressUnblacklisted {
 pub struct TokensWiped {
     pub target_user: Pubkey,
     pub amount: u64,
-    pub authority: Pubkey,
-}
-
-#[event]
-pub struct TransferFeeUpdated {
-    pub mint: Pubkey,
-    pub transfer_fee_basis_points: u16,
-    pub maximum_fee: u64,
-    pub authority: Pubkey,
-}
-
-#[event]
-pub struct WithheldTokensWithdrawn {
-    pub mint: Pubkey,
-    pub destination: Pubkey,
-    pub authority: Pubkey,
-}
-
-#[event]
-pub struct WithheldTokensWithdrawnFromAccounts {
-    pub mint: Pubkey,
-    pub destination: Pubkey,
-    pub source_accounts: Vec<Pubkey>,
     pub authority: Pubkey,
 }
 
