@@ -1,5 +1,7 @@
 // lib.rs -> Complete Gold Token Program (Anchor 0.31.1)
 
+add admin pda to change the 3 roles and this admin can also be changed by deployer and both of them will have the same authority to change the roles
+
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -237,6 +239,8 @@ pub mod gold_token {
     // ============================================
 
     /// @dev Updates the transfer fee configuration.
+    /// 
+    this is not needed at momemt keep it hard coded to 0.02%
     pub fn set_transfer_fee(
         ctx: Context<SetTransferFee>, 
         transfer_fee_basis_points: u16, 
@@ -362,6 +366,7 @@ pub mod gold_token {
     // ============================================
 
     /// @dev Creates a new redemption request and locks user tokens via delegation.
+    lock those tokens for amount here 
     pub fn request_redemption(ctx: Context<RequestRedemption>, amount: u64) -> Result<()> {
         require!(amount > 0, GoldTokenError::InvalidAmount);
         require!(!ctx.accounts.config.is_paused, GoldTokenError::ContractPaused);
@@ -453,6 +458,8 @@ pub mod gold_token {
         Ok(())
     }
 
+
+    add check to make sure the user cant cancel when the status is processing or fulfilled
     /// @dev Cancels a redemption request and returns token delegation.
     pub fn cancel_redemption(ctx: Context<CancelRedemption>) -> Result<()> {
         let request = &mut ctx.accounts.redemption_request;
