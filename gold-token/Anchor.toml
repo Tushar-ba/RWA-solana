@@ -6,19 +6,28 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-gold_token = "EN54bHs4cXhfcqaAbvcSzcF4vBwSeyCSMaDm9W6MXFhC"
-transfer_hook_gatekeeper = "CsMsG5FueDqKdmZ1THbBRhvN2NXkDVsaHCABDsfmL4Ld"
+gold_token = "C176ariJdhohGukRysUUnJWccxMiAe1gLFkbR54Swrfb"
+transfer_hook_gatekeeper = "8eVMybvKD5phhoqhpoFRDY2VZAhmbhqRg6LY9uj1t8MP"
 
 [programs.localnet]
-gold_token = "EN54bHs4cXhfcqaAbvcSzcF4vBwSeyCSMaDm9W6MXFhC"
-transfer_hook_gatekeeper = "5HbTps64Rx3964dLyTHDdEBnMe69KNRpYvJFrB6ryfgZ"
+gold_token = "C176ariJdhohGukRysUUnJWccxMiAe1gLFkbR54Swrfb"
+transfer_hook_gatekeeper = "8eVMybvKD5phhoqhpoFRDY2VZAhmbhqRg6LY9uj1t8MP"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+[test]
+startup_wait = 5000
+shutdown_wait = 2000
+upgradeable = false
+
+[[test.genesis]]
+address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+program = "tests/metaplex_token_metadata.so"

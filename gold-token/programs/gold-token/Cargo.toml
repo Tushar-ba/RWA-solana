@@ -20,6 +20,8 @@ idl-build = ["anchor-lang/idl-build","anchor-spl/idl-build"]
 [dependencies]
 anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
 # Required for Token-2022 interactions (extensions, interfaces, etc.)
-anchor-spl = { version = "0.31.1", features = ["token_2022"] }
+anchor-spl = { version = "0.31.1", features = ["token_2022", "metadata"] }
 # Required to make CPI calls to your gatekeeper program
 transfer-hook-gatekeeper = { path = "../transfer-hook-gatekeeper", features = ["cpi"] }
+# Required for metadata
+mpl-token-metadata = { version = "5.1.0", features = ["serde"] }

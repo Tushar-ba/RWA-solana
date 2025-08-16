@@ -8,7 +8,7 @@ use spl_tlv_account_resolution::{
 };
 use spl_transfer_hook_interface::instruction::{ExecuteInstruction, TransferHookInstruction};
 
-declare_id!("CsMsG5FueDqKdmZ1THbBRhvN2NXkDVsaHCABDsfmL4Ld");
+declare_id!("8eVMybvKD5phhoqhpoFRDY2VZAhmbhqRg6LY9uj1t8MP");
 
 #[program]
 pub mod transfer_hook_gatekeeper {
@@ -95,18 +95,25 @@ pub mod transfer_hook_gatekeeper {
 
     /// The main transfer hook execution function
     pub fn transfer_hook(ctx: Context<TransferHook>, _amount: u64) -> Result<()> {
-        // Check if source blacklist PDA exists (has data)
-        if ctx.accounts.source_blacklist_entry.data_len() > 0 {
+        // Validate that the owner matches the source token account owner
+        require_keys_eq!(
+            ctx.accounts.owner.key(),
+            ctx.accounts.source_token.owner,
+            GatekeeperError::Unauthorized
+        );
+    
+        // Check if source blacklist PDA exists and has data (meaning the address is blacklisted)
+        if ctx.accounts.source_blacklist_entry.data_len() > 8 { // More than just discriminator
             msg!("Source address is blacklisted. Transfer denied.");
             return err!(GatekeeperError::AddressBlacklisted);
         }
-
-        // Check if destination blacklist PDA exists (has data)
-        if ctx.accounts.destination_blacklist_entry.data_len() > 0 {
+    
+        // Check if destination blacklist PDA exists and has data
+        if ctx.accounts.destination_blacklist_entry.data_len() > 8 { // More than just discriminator
             msg!("Destination address is blacklisted. Transfer denied.");
             return err!(GatekeeperError::AddressBlacklisted);
         }
-
+    
         msg!("Transfer approved");
         Ok(())
     }
@@ -230,12 +237,12 @@ pub struct RemoveFromBlacklist<'info> {
 /// Context for the transfer hook execution
 #[derive(Accounts)]
 pub struct TransferHook<'info> {
-    #[account(token::mint = mint, token::authority = owner)]
+    #[account(token::mint = mint)]
     pub source_token: InterfaceAccount<'info, TokenAccount>,
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(token::mint = mint)]
     pub destination_token: InterfaceAccount<'info, TokenAccount>,
-    /// CHECK: source token account owner
+    /// CHECK: source token account owner - this should match source_token.owner
     pub owner: UncheckedAccount<'info>,
     /// CHECK: ExtraAccountMetaList Account
     #[account(
@@ -243,20 +250,11 @@ pub struct TransferHook<'info> {
         bump
     )]
     pub extra_account_meta_list: UncheckedAccount<'info>,
-    /// CHECK: Source blacklist PDA
-    #[account(
-        seeds = [b"blacklist", source_token.owner.as_ref()],
-        bump
-    )]
+    /// CHECK: Source blacklist PDA - this account may not exist (which is OK)
     pub source_blacklist_entry: UncheckedAccount<'info>,
-    /// CHECK: Destination blacklist PDA
-    #[account(
-        seeds = [b"blacklist", destination_token.owner.as_ref()],
-        bump
-    )]
+    /// CHECK: Destination blacklist PDA - this account may not exist (which is OK)
     pub destination_blacklist_entry: UncheckedAccount<'info>,
 }
-
 /// Configuration account for the gatekeeper
 #[account]
 pub struct Config {

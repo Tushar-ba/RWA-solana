@@ -1,31 +1,34 @@
 // lib.rs -> Complete Gold Token Program (Anchor 0.31.1)
 
-add admin pda to change the 3 roles and this admin can also be changed by deployer and both of them will have the same authority to change the roles
+//add admin pda to change the 3 roles and this admin can also be changed by deployer and both of them will have the same authority to change the roles
 
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
+    metadata::{
+        create_metadata_accounts_v3, update_metadata_accounts_v2,
+        CreateMetadataAccountsV3, Metadata, UpdateMetadataAccountsV2,
+    },
     token_interface::{
-        burn, mint_to, approve, revoke,
+        burn, mint_to, approve, revoke, transfer_checked,
         Burn, Mint, MintTo, TokenAccount, TokenInterface,
-        Approve, Revoke,
+        Approve, Revoke, TransferChecked,
     },
     token_2022::spl_token_2022::{
         instruction::{
             initialize_permanent_delegate,
         },
-        extension::transfer_hook::instruction::initialize,
-
     },
 };
 use anchor_lang::solana_program::program::invoke_signed;
+use mpl_token_metadata::types::DataV2;
 
 // Import the gatekeeper program to use its account types and CPI contexts
 use transfer_hook_gatekeeper::program::TransferHookGatekeeper;
 
 
 // This is the Program ID of the main gold token program
-declare_id!("EN54bHs4cXhfcqaAbvcSzcF4vBwSeyCSMaDm9W6MXFhC");
+declare_id!("C176ariJdhohGukRysUUnJWccxMiAe1gLFkbR54Swrfb");
 
 #[program]
 pub mod gold_token {
@@ -36,9 +39,9 @@ pub mod gold_token {
     // ============================================
     pub fn initialize(
         ctx: Context<Initialize>,
-        _name: String,
-        _symbol: String,
-        _uri: String,
+        name: String,
+        symbol: String,
+        uri: String,
         transfer_fee_basis_points: u16,
         maximum_fee: u64,
     ) -> Result<()> {
@@ -159,6 +162,10 @@ pub mod gold_token {
         };
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         transfer_hook_gatekeeper::cpi::initialize(cpi_ctx)?;
+
+        // TODO: Add metadata creation later
+        // For now, skip metadata to test core functionality
+        msg!("Token initialized with name: {}, symbol: {}, uri: {}", name, symbol, uri);
     
         // Initialize the ExtraAccountMetaList for the transfer hook
         let cpi_accounts = transfer_hook_gatekeeper::cpi::accounts::InitializeExtraAccountMetaList {
@@ -174,6 +181,9 @@ pub mod gold_token {
             mint: ctx.accounts.mint.key(),
             admin: *ctx.accounts.admin.key,
             gatekeeper_program: *ctx.accounts.gatekeeper_program.key,
+            name: name.clone(),
+            symbol: symbol.clone(),
+            uri: uri.clone(),
         });
     
         Ok(())
@@ -234,13 +244,50 @@ pub mod gold_token {
         Ok(())
     }
 
+    /// @dev Updates the admin account - can only be called by current admin
+    pub fn update_admin(ctx: Context<UpdateRole>, new_admin: Pubkey) -> Result<()> {
+        let old_admin = ctx.accounts.config.admin;
+        ctx.accounts.config.admin = new_admin;
+        
+        emit!(RoleUpdated {
+            role: "admin".to_string(),
+            old_authority: old_admin,
+            new_authority: new_admin,
+        });
+        
+        Ok(())
+    }
+
+    /// @dev Updates metadata for the token (placeholder for now)
+    pub fn update_metadata(
+        ctx: Context<UpdateMetadata>,
+        name: String,
+        symbol: String,
+        uri: String,
+    ) -> Result<()> {
+        require!(!ctx.accounts.config.is_paused, GoldTokenError::ContractPaused);
+
+        // TODO: Implement metadata update functionality later
+        msg!("Metadata update requested: name={}, symbol={}, uri={}", name, symbol, uri);
+
+        emit!(MetadataUpdated {
+            mint: ctx.accounts.config.mint,
+            name,
+            symbol,
+            uri,
+            authority: *ctx.accounts.admin.key,
+        });
+
+        Ok(())
+    }
+
     // ============================================
     // FEE CONTROLLER FUNCTIONS
     // ============================================
 
     /// @dev Updates the transfer fee configuration.
     /// 
-    this is not needed at momemt keep it hard coded to 0.02%
+    //this is not needed at momemt keep it hard coded to 0.02%
     pub fn set_transfer_fee(
         ctx: Context<SetTransferFee>, 
         transfer_fee_basis_points: u16, 
@@ -362,11 +409,45 @@ pub mod gold_token {
     }
 
     // ============================================
+    // TOKEN TRANSFER FUNCTIONS
+    // ============================================
+
+    /// @dev Transfers tokens between accounts (for authorized transfers)
+    // pub fn transfer_tokens(ctx: Context<TransferTokens>, amount: u64) -> Result<()> {
+    //     require!(amount > 0, GoldTokenError::InvalidAmount);
+    //     require!(!ctx.accounts.config.is_paused, GoldTokenError::ContractPaused);
+        
+    //     // Let Token-2022 handle the transfer hook automatically
+    //     transfer_checked(
+    //         CpiContext::new(
+    //             ctx.accounts.token_program.to_account_info(),
+    //             TransferChecked {
+    //                 from: ctx.accounts.from.to_account_info(),
+    //                 to: ctx.accounts.to.to_account_info(),
+    //                 authority: ctx.accounts.authority.to_account_info(),
+    //                 mint: ctx.accounts.mint.to_account_info(),
+    //             },
+    //         ),
+    //         amount,
+    //         9, // decimals
+    //     )?;
+    
+    //     emit!(TokensTransferred {
+    //         from: ctx.accounts.from.key(),
+    //         to: ctx.accounts.to.key(),
+    //         amount,
+    //         authority: *ctx.accounts.authority.key,
+    //     });
+    
+    //     Ok(())
+    // }
+
+    // ============================================
     // REDEMPTION REQUEST LIFECYCLE
     // ============================================
 
     /// @dev Creates a new redemption request and locks user tokens via delegation.
-    lock those tokens for amount here 
+    //lock those tokens for amount here 
     pub fn request_redemption(ctx: Context<RequestRedemption>, amount: u64) -> Result<()> {
         require!(amount > 0, GoldTokenError::InvalidAmount);
         require!(!ctx.accounts.config.is_paused, GoldTokenError::ContractPaused);
@@ -459,7 +540,7 @@ pub mod gold_token {
     }
 
 
-    add check to make sure the user cant cancel when the status is processing or fulfilled
+    //add check to make sure the user cant cancel when the status is processing or fulfilled
     /// @dev Cancels a redemption request and returns token delegation.
     pub fn cancel_redemption(ctx: Context<CancelRedemption>) -> Result<()> {
         let request = &mut ctx.accounts.redemption_request;
@@ -730,6 +811,27 @@ pub struct MintTokens<'info> {
     pub system_program: Program<'info, System>,
 }
 
+// #[derive(Accounts)]
+// pub struct TransferTokens<'info> {
+//     pub config: Account<'info, Config>,
+//     #[account(address = config.mint)]
+//     pub mint: InterfaceAccount<'info, Mint>,
+//     #[account(mut, token::mint = mint)]
+//     pub from: InterfaceAccount<'info, TokenAccount>,
+//     #[account(mut, token::mint = mint)]
+//     pub to: InterfaceAccount<'info, TokenAccount>,
+//     pub authority: Signer<'info>,
+//     pub token_program: Interface<'info, TokenInterface>,
+//     // Remove the manual gatekeeper accounts - Token-2022 will resolve them automatically
+// }
+
+#[derive(Accounts)]
+pub struct UpdateMetadata<'info> {
+    #[account(has_one = admin)]
+    pub config: Account<'info, Config>,
+    pub admin: Signer<'info>,
+}
+
 #[derive(Accounts)]
 pub struct RequestRedemption<'info> {
     #[account(mut)]
@@ -900,6 +1002,9 @@ pub struct TokenInitialized {
     pub mint: Pubkey,
     pub admin: Pubkey,
     pub gatekeeper_program: Pubkey,
+    pub name: String,
+    pub symbol: String,
+    pub uri: String,
 }
 
 #[event]
@@ -995,6 +1100,23 @@ pub struct WithheldTokensWithdrawnFromAccounts {
     pub mint: Pubkey,
     pub destination: Pubkey,
     pub source_accounts: Vec<Pubkey>,
+    pub authority: Pubkey,
+}
+
+#[event]
+pub struct TokensTransferred {
+    pub from: Pubkey,
+    pub to: Pubkey,
+    pub amount: u64,
+    pub authority: Pubkey,
+}
+
+#[event]
+pub struct MetadataUpdated {
+    pub mint: Pubkey,
+    pub name: String,
+    pub symbol: String,
+    pub uri: String,
     pub authority: Pubkey,
 }
 
