@@ -28,7 +28,7 @@ use transfer_hook_gatekeeper::program::TransferHookGatekeeper;
 
 
 // This is the Program ID of the main gold token program
-declare_id!("C176ariJdhohGukRysUUnJWccxMiAe1gLFkbR54Swrfb");
+declare_id!("FJRHV2j9Kc82UamYf7D42yeYHtwsb5e8ZAfZQeLaRN9b");
 
 #[program]
 pub mod gold_token {
@@ -873,8 +873,10 @@ pub struct FulfillRedemption<'info> {
     #[account(mut)]
     pub user_token_account: InterfaceAccount<'info, TokenAccount>,
     /// CHECK: The user who made the request.
+    #[account(mut)]
     pub user: AccountInfo<'info>,
     #[account(
+        mut,
         seeds = [b"redemption_pda", user.key().as_ref(), &redemption_request.request_id.to_le_bytes()], 
         bump = redemption_request.redemption_pda_bump
     )]
