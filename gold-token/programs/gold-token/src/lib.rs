@@ -912,8 +912,7 @@ pub struct UpdateBlacklist<'info> {
     pub mint: InterfaceAccount<'info, Mint>,
     /// CHECK: The address to add to the blacklist.
     pub target_address: AccountInfo<'info>,
-    /// CHECK: The PDA marker account for the blacklist entry.
-    #[account(mut)]
+    /// CHECK: The PDA marker account for the blacklist entry - let gatekeeper create it
     pub blacklist_entry: AccountInfo<'info>,
     pub gatekeeper_program: Program<'info, TransferHookGatekeeper>,
     /// CHECK: The config account for the gatekeeper program.

@@ -84,13 +84,18 @@ pub mod transfer_hook_gatekeeper {
     }
     
     /// Add an address to the blacklist
-    pub fn add_to_blacklist(_ctx: Context<AddToBlacklist>) -> Result<()> { 
-        Ok(()) 
+    pub fn add_to_blacklist(ctx: Context<AddToBlacklist>) -> Result<()> {
+        // The blacklist entry account is created by the #[account(init)] constraint
+        // We just need to ensure it's properly initialized
+        msg!("Address {} added to blacklist", ctx.accounts.target_address.key());
+        Ok(())
     }
     
     /// Remove an address from the blacklist
-    pub fn remove_from_blacklist(_ctx: Context<RemoveFromBlacklist>) -> Result<()> { 
-        Ok(()) 
+    pub fn remove_from_blacklist(_ctx: Context<RemoveFromBlacklist>) -> Result<()> {
+        // The blacklist entry account is closed by the #[account(close)] constraint
+        msg!("Address removed from blacklist");
+        Ok(())
     }
 
     /// The main transfer hook execution function
