@@ -64,35 +64,21 @@ async function wipeBlacklistedAddress() {
   console.log("Target token account:", targetTokenAccount.toBase58());
   console.log("Blacklist Entry PDA:", blacklistEntry.toBase58());
 
-  // First, add user to blacklist if not already blacklisted
+  // Check if user is already blacklisted
   const blacklistAccountInfo = await provider.connection.getAccountInfo(blacklistEntry);
   if (!blacklistAccountInfo) {
-    console.log("Adding user to blacklist first...");
-    
-    const addTx = await gatekeeperProgram.methods
-      .addToBlacklist()
-      .accountsPartial({
-        config: gatekeeperConfig,
-        authority: assetProtection.publicKey,
-        targetAddress: user2.publicKey,
-        blacklistEntry: blacklistEntry,
-        mint: mint,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .signers([assetProtection])
-      .rpc();
-
-    console.log("User added to blacklist:", addTx);
-  } else {
-    console.log("✓ User is already blacklisted");
+    console.log("❌ User is not blacklisted. Please add to blacklist first using script 07-add-to-blacklist.ts");
+    return;
   }
+
+  console.log("✓ User is already blacklisted");
 
   // Check token balance before wipe
   const tokenBalanceBefore = await provider.connection.getTokenAccountBalance(targetTokenAccount);
   console.log("Token balance before wipe:", tokenBalanceBefore.value.uiAmount, "tokens");
 
   // Wipe amount (15 tokens)
-  const wipeAmount = new BN(15000000000);
+  const wipeAmount = new BN(115000000000);
   console.log("Wipe amount:", wipeAmount.toString(), "raw units (15 tokens)");
 
   try {

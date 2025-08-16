@@ -39,16 +39,19 @@ async function cancelRedemption() {
   console.log("Mint:", mint.toBase58());
   console.log("User:", user2.publicKey.toBase58());
 
-  // Get current config to determine next request ID
-  const nextRequestId = config.redemptionRequestCounter.toNumber() + 1;
+  // Get current config to determine the request ID to cancel
+  // We'll cancel the most recent request (current counter value)
+  const requestIdToCancel = config.redemptionRequestCounter.toNumber();
+
+  if (requestIdToCancel === 0) {
+    console.log("❌ No redemption requests found to cancel");
+    return;
+  }
+
+  console.log("Cancelling redemption request with ID:", requestIdToCancel);
 
   const [redemptionRequest] = PublicKey.findProgramAddressSync(
-    [Buffer.from("redemption_request"), user2.publicKey.toBuffer(), new BN(nextRequestId).toBuffer("le", 8)],
-    program.programId
-  );
-
-  const [redemptionPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("redemption_pda"), user2.publicKey.toBuffer(), new BN(nextRequestId).toBuffer("le", 8)],
+    [Buffer.from("redemption_request"), user2.publicKey.toBuffer(), new BN(requestIdToCancel).toBuffer("le", 8)],
     program.programId
   );
 
@@ -71,30 +74,20 @@ async function cancelRedemption() {
     await provider.connection.confirmTransaction(fundTx);
   }
 
-  // First create a redemption request to cancel
-  const redemptionAmount = new BN(10000000000); // 10 tokens
-  console.log("Creating redemption request to cancel...");
-
   try {
-    // Create redemption request
-    const createTx = await program.methods
-      .requestRedemption(redemptionAmount)
-      .accountsPartial({
-        user: user2.publicKey,
-        config: configAccount,
-        redemptionRequest: redemptionRequest,
-        userTokenAccount: userTokenAccount,
-        mint: mint,
-        redemptionPda: redemptionPda,
-        tokenProgram: TOKEN_2022_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      })
-      .signers([user2])
-      .rpc();
+    // Check if the redemption request exists and get its status
+    const redemptionRequestAccount = await program.account.redemptionRequest.fetch(redemptionRequest);
+    console.log("Redemption request details:");
+    console.log("  - Request ID:", redemptionRequestAccount.requestId.toString());
+    console.log("  - Amount:", redemptionRequestAccount.amount.toString());
+    console.log("  - Status:", redemptionRequestAccount.status);
 
-    console.log("Redemption request created:", createTx);
+    // Only allow cancellation if status is pending
+    if ('processing' in redemptionRequestAccount.status || 'fulfilled' in redemptionRequestAccount.status) {
+      console.log("❌ Cannot cancel redemption request - it's already being processed or fulfilled");
+      return;
+    }
 
-    // Now cancel the redemption
     console.log("Cancelling redemption request...");
 
     const cancelTx = await program.methods
