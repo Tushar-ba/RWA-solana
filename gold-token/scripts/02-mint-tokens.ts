@@ -8,69 +8,65 @@ import {
   getAssociatedTokenAddressSync
 } from "@solana/spl-token";
 import { BN } from "@coral-xyz/anchor";
+import * as fs from "fs";
 
 async function mintTokens() {
   console.log("=== Minting Gold Tokens ===");
 
-  // Setup provider from local environment
-  const provider = anchor.AnchorProvider.local();
+  // Load admin keypair to use as wallet
+  const admin = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync("new/admin.json", "utf8"))));
+  
+  // Setup provider with admin as wallet
+  const connection = new anchor.web3.Connection("http://localhost:8899", "confirmed");
+  const wallet = new anchor.Wallet(admin);
+  const provider = new anchor.AnchorProvider(connection, wallet, {});
   anchor.setProvider(provider);
 
-  // Load program
-  const program = anchor.workspace.GoldToken as Program<GoldToken>;
-  
+  // Load other keypairs
+  const supplyController = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync("new/supply.json", "utf8"))));
+  const user2 = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync("new/user2.json", "utf8"))));
 
-  const MINT_ADDRESS = "YOUR_MINT_ADDRESS_HERE"; // 
-  const SUPPLY_CONTROLLER_PRIVATE_KEY = ""; // Replace with actual key
-  
-  // If you don't have the private key, generate a new supply controller and update config
-  const supplyController = Keypair.fromSecretKey(
-    new Uint8Array(JSON.parse(SUPPLY_CONTROLLER_PRIVATE_KEY))
-  );
-  
-  const mint = new PublicKey(MINT_ADDRESS);
-  
-  // Derive config account
+  // Get program instance
+  const program = anchor.workspace.GoldToken as Program<GoldToken>;
+
+  // Derive config PDA and get mint address from config
   const [configAccount] = PublicKey.findProgramAddressSync(
     [Buffer.from("config")],
     program.programId
   );
 
-  // Derive mint authority PDA
+  const config = await program.account.config.fetch(configAccount);
+  const mint = config.mint;
+
+  console.log("Mint:", mint.toBase58());
+  console.log("Supply Controller:", supplyController.publicKey.toBase58());
+  console.log("Recipient:", user2.publicKey.toBase58());
+
   const [mintAuthorityPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("mint_authority")],
     program.programId
   );
 
-  // Recipient (can be any address, using CLI wallet here)
-  const recipient = provider.wallet.publicKey;
-  console.log("Minting to recipient:", recipient.toBase58());
-
-  // Calculate recipient's token account address
+  // Get recipient token account
   const recipientTokenAccount = getAssociatedTokenAddressSync(
     mint,
-    recipient,
-    false, // allowOwnerOffCurve
-    TOKEN_2022_PROGRAM_ID,
-    ASSOCIATED_TOKEN_PROGRAM_ID
+    user2.publicKey,
+    false,
+    TOKEN_2022_PROGRAM_ID
   );
 
   console.log("Recipient token account:", recipientTokenAccount.toBase58());
 
   // Amount to mint (100 tokens with 9 decimals)
-  const amount = new BN(100_000_000_000);
+  const amount = new BN(100000000000);
   console.log("Minting amount:", amount.toString(), "raw units (100 tokens)");
 
   // Fund supply controller if needed
   const supplyControllerBalance = await provider.connection.getBalance(supplyController.publicKey);
-  if (supplyControllerBalance < 10_000_000) { // Less than 0.01 SOL
+  if (supplyControllerBalance < 10000000) {
     console.log("Funding supply controller...");
-    const fundTx = await provider.connection.requestAirdrop(
-      supplyController.publicKey,
-      1_000_000_000 // 1 SOL
-    );
+    const fundTx = await provider.connection.requestAirdrop(supplyController.publicKey, 1000000000);
     await provider.connection.confirmTransaction(fundTx);
-    console.log("Supply controller funded");
   }
 
   // Check balance before minting
@@ -82,23 +78,20 @@ async function mintTokens() {
   }
 
   try {
-    // Execute mint transaction
     const tx = await program.methods
-      .mintTokens(amount, recipient) // Amount and intended recipient
+      .mintTokens(amount, user2.publicKey)
       .accountsPartial({
         config: configAccount,
-        supplyController: supplyController.publicKey, // Must match the one in config
+        supplyController: supplyController.publicKey,
         mint: mint,
-        mintAuthorityPda: mintAuthorityPda, // PDA that has mint authority
-        recipient: recipient,
-        recipientTokenAccount: recipientTokenAccount, // Where tokens will be minted to
+        mintAuthorityPda: mintAuthorityPda,
+        recipient: user2.publicKey,
+        recipientTokenAccount: recipientTokenAccount,
         tokenProgram: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
-      .signers([
-        supplyController // Supply controller must sign to authorize minting
-      ])
+      .signers([supplyController])
       .rpc();
 
     console.log("✅ Tokens minted successfully!");
@@ -114,7 +107,6 @@ async function mintTokens() {
   }
 }
 
-// Run the script
 mintTokens()
   .then(() => process.exit(0))
   .catch((error) => {

@@ -28,7 +28,7 @@ use transfer_hook_gatekeeper::program::TransferHookGatekeeper;
 
 
 // This is the Program ID of the main gold token program
-declare_id!("GD4bYRVDAQyWuGqjuPJAds29DVJquUEBXfMRLiytBkVs");
+declare_id!("145NsmtHEdDLEYHoEB9zWBqxhmaq7o6hXM7Z5B2nCre6");
 
 #[program]
 pub mod gold_token {

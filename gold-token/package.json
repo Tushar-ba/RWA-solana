@@ -1,9 +1,24 @@
 {
-  "type": "module",
   "license": "ISC",
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
-    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check"
+    "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
+    "initialize": "ts-node scripts/01-initialize.ts",
+    "mint": "ts-node scripts/02-mint-tokens.ts",
+    "transfer": "ts-node scripts/03-transfer-tokens.ts",
+    "request-redemption": "ts-node scripts/04-request-redemption.ts",
+    "fulfill-redemption": "ts-node scripts/05-fulfill-redemption.ts",
+    "cancel-redemption": "ts-node scripts/06-cancel-redemption.ts",
+    "add-blacklist": "ts-node scripts/07-add-to-blacklist.ts",
+    "remove-blacklist": "ts-node scripts/08-remove-from-blacklist.ts",
+    "wipe-blacklisted": "ts-node scripts/09-wipe-blacklisted-address.ts",
+    "withdraw-fees": "ts-node scripts/10-withdraw-fees.ts",
+    "toggle-pause": "ts-node scripts/11-toggle-pause.ts",
+    "update-supply": "ts-node scripts/12-update-supply-controller.ts",
+    "update-asset": "ts-node scripts/13-update-asset-protection.ts",
+    "update-fee": "ts-node scripts/14-update-fee-controller.ts",
+    "update-admin": "ts-node scripts/15-update-admin.ts",
+    "set-processing": "ts-node scripts/16-set-redemption-processing.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",

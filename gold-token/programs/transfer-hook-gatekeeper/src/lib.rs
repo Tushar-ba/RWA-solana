@@ -8,7 +8,7 @@ use spl_tlv_account_resolution::{
 };
 use spl_transfer_hook_interface::instruction::{ExecuteInstruction, TransferHookInstruction};
 
-declare_id!("Bx71tovdDHUDwqFLmUc8NXRAG9P33kX59wjRYejM6Cj7");
+declare_id!("HE5suR91MGPsrWapxoRf4yu4QR55fBrngm8GMChiMiPX");
 
 #[program]
 pub mod transfer_hook_gatekeeper {
@@ -108,13 +108,13 @@ pub mod transfer_hook_gatekeeper {
         );
     
         // Check if source blacklist PDA exists and has data (meaning the address is blacklisted)
-        if ctx.accounts.source_blacklist_entry.data_len() > 8 { // More than just discriminator
+        if ctx.accounts.source_blacklist_entry.data_len() >= 8 { // Has discriminator = blacklisted
             msg!("Source address is blacklisted. Transfer denied.");
             return err!(GatekeeperError::AddressBlacklisted);
         }
     
         // Check if destination blacklist PDA exists and has data
-        if ctx.accounts.destination_blacklist_entry.data_len() > 8 { // More than just discriminator
+        if ctx.accounts.destination_blacklist_entry.data_len() >= 8 { // Has discriminator = blacklisted
             msg!("Destination address is blacklisted. Transfer denied.");
             return err!(GatekeeperError::AddressBlacklisted);
         }
