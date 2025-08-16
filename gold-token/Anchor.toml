@@ -6,12 +6,12 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-gold_token = "FJRHV2j9Kc82UamYf7D42yeYHtwsb5e8ZAfZQeLaRN9b"
-transfer_hook_gatekeeper = "AGvh4c8jn7AG7wY7a3TGSUMYNQJDyNhCcMaV3ffvM5fP"
+gold_token = "3n4HRfj9SByGYGAHyyBMRTg9vx5K7hrMLiWQk1ajTPep"
+transfer_hook_gatekeeper = "8n1czd3nT2mpgAcqayj8bfPXS9dtMKFHSe3Tz2v1PM3V"
 
 [programs.localnet]
-gold_token = "FJRHV2j9Kc82UamYf7D42yeYHtwsb5e8ZAfZQeLaRN9b"
-transfer_hook_gatekeeper = "AGvh4c8jn7AG7wY7a3TGSUMYNQJDyNhCcMaV3ffvM5fP"
+gold_token = "3n4HRfj9SByGYGAHyyBMRTg9vx5K7hrMLiWQk1ajTPep"
+transfer_hook_gatekeeper = "8n1czd3nT2mpgAcqayj8bfPXS9dtMKFHSe3Tz2v1PM3V"
 
 [registry]
 url = "https://api.apr.dev"

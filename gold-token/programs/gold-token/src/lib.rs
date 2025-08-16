@@ -28,7 +28,7 @@ use transfer_hook_gatekeeper::program::TransferHookGatekeeper;
 
 
 // This is the Program ID of the main gold token program
-declare_id!("FJRHV2j9Kc82UamYf7D42yeYHtwsb5e8ZAfZQeLaRN9b");
+declare_id!("3n4HRfj9SByGYGAHyyBMRTg9vx5K7hrMLiWQk1ajTPep");
 
 #[program]
 pub mod gold_token {
@@ -865,6 +865,7 @@ pub struct RequestRedemption<'info> {
 pub struct FulfillRedemption<'info> {
     #[account(has_one = supply_controller)]
     pub config: Account<'info, Config>,
+    #[account(mut)]
     pub supply_controller: Signer<'info>,
     #[account(mut, close = supply_controller, has_one = user)]
     pub redemption_request: Account<'info, RedemptionRequest>,

@@ -43,7 +43,7 @@ describe("gold-token", () => {
   const maximumFee = new BN("1000000000"); // 1 token with 9 decimals
 
   // Shared variables for all tests  
-  const gatekeeperProgram = new PublicKey("AGvh4c8jn7AG7wY7a3TGSUMYNQJDyNhCcMaV3ffvM5fP");
+  const gatekeeperProgram = new PublicKey("8n1czd3nT2mpgAcqayj8bfPXS9dtMKFHSe3Tz2v1PM3V");
   
   // Get the existing config account to find the initialized mint
   const [configAccount] = PublicKey.findProgramAddressSync(
